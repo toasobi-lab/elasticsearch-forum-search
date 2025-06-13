@@ -1,0 +1,219 @@
+---
+import Layout from '../layouts/Layout.astro';
+import type { Logger } from '../utils/logger';
+import type { Post, SearchResponse } from '../types/api'; // Import interfaces
+
+// Mark as server-rendered
+export const prerender = false;
+
+// Removed interface definitions
+
+// Get search parameters from URL
+const searchParams = Astro.url.searchParams;
+const query = searchParams.get('q') || '';
+const page = parseInt(searchParams.get('page') || '1');
+
+// Log search initialization with request details
+const logger = Astro.locals.logger as Logger; // Explicitly cast logger
+logger.info('Search page initialized', {
+  url: Astro.url.toString(),
+  method: Astro.request.method,
+  params: {
+    query,
+    page,
+    rawParams: Object.fromEntries(searchParams.entries())
+  },
+  headers: Object.fromEntries(Astro.request.headers.entries())
+});
+
+// Always fetch search results
+const searchStartTime = performance.now();
+
+const searchUrl = new URL('http://backend:8000/api/search/');
+searchUrl.searchParams.set('query', query);
+searchUrl.searchParams.set('page', page.toString());
+
+logger.debug('Fetching search results', { url: searchUrl.toString() });
+
+let results: SearchResponse;
+try {
+  const response = await fetch(searchUrl.toString());
+  const searchEndTime = performance.now();
+  const searchTime = (searchEndTime - searchStartTime).toFixed(2);
+  
+  logger.info('Search API response received', {
+    status: response.status,
+    statusText: response.statusText,
+    time: `${searchTime}ms`,
+    headers: Object.fromEntries(response.headers.entries())
+  });
+
+  if (!response.ok) {
+    logger.error('Search API error', {
+      status: response.status,
+      statusText: response.statusText,
+      url: searchUrl.toString()
+    });
+    throw new Error(`Search API returned ${response.status}: ${response.statusText}`);
+  }
+
+  results = await response.json();
+  logger.info('Search results processed', {
+    total: results.total,
+    hits: results.hits.length,
+    page: results.page,
+    size: results.size,
+    took_ms: results.took_ms,
+    firstResult: results.hits[0] ? {
+      id: results.hits[0].id,
+      title: results.hits[0].title,
+      tags: results.hits[0].tags
+    } : null
+  });
+} catch (error: unknown) {
+  const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+  logger.error('Search API request failed', { 
+    error: errorMessage,
+    url: searchUrl.toString(),
+    time: `${(performance.now() - searchStartTime).toFixed(2)}ms`
+  });
+  throw error;
+}
+
+// No longer fetching available tags as tag filtering is removed
+const availableTags: string[] = []; // Initialize as empty array to avoid errors in template
+
+---
+
+<Layout title="Forum Search - Search">
+  <div class="space-y-8">
+    <div class="text-center space-y-4">
+      <h1 class="text-4xl font-extrabold text-gray-900 sm:text-5xl">
+        Search Posts
+      </h1>
+      <p class="text-xl text-gray-600 max-w-2xl mx-auto">
+        Find exactly what you're looking for in our forum
+      </p>
+    </div>
+
+    <form class="max-w-3xl mx-auto" id="search-form" method="GET">
+      <div class="flex gap-4">
+        <div class="flex-1">
+          <label for="search" class="sr-only">Search posts</label>
+          <div class="relative rounded-md shadow-sm">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <input
+              type="text"
+              name="q"
+              id="search"
+              value={query}
+              placeholder="Search posts..."
+              class="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            />
+          </div>
+        </div>
+        <button
+          type="submit"
+          class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200"
+        >
+          Search
+        </button>
+      </div>
+    </form>
+
+    {results && (
+      <div class="space-y-6">
+        <div class="flex items-center justify-between text-sm text-gray-500">
+          <p>
+            Found {results.total} results for "{query}"
+            {results.took_ms && <span class="ml-2">(in {results.took_ms}ms)</span>}
+          </p>
+          {results.total > 0 && (
+            <div class="flex items-center space-x-2">
+              <span class="text-gray-500">Sort by:</span>
+              <select
+                id="sort-select"
+                class="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+              >
+                <option value="relevance">Relevance</option>
+                <option value="date">Date</option>
+              </select>
+            </div>
+          )}
+        </div>
+
+        <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {results.hits.map((post: Post) => (
+            <article class="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden border border-gray-200">
+              <div class="p-6">
+                <h2 class="text-xl font-semibold text-gray-900 mb-2 line-clamp-2">
+                  <a href={`/posts/${post.id}/`} class="hover:text-indigo-600 transition-colors duration-200">
+                    {post.title}
+                  </a>
+                </h2>
+                <p class="text-gray-600 mb-4 line-clamp-3">
+                  {post.content}
+                </p>
+                <div class="flex flex-wrap gap-2 mb-4">
+                  {post.tags.map((tag: string) => (
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+                <div class="flex items-center justify-between text-sm text-gray-500">
+                  <time datetime={post.created_at}>
+                    {new Date(post.created_at).toLocaleDateString()}
+                  </time>
+                  <a href={`/posts/${post.id}/`} class="text-indigo-600 hover:text-indigo-500 font-medium">
+                    Read more →
+                  </a>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        {results.total === 0 && (
+          <div class="text-center py-12">
+            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h3 class="mt-2 text-sm font-medium text-gray-900">No results found</h3>
+            <p class="mt-1 text-sm text-gray-500">Try adjusting your search terms or create a new post.</p>
+            <div class="mt-6">
+              <a href="/new" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                Create New Post
+              </a>
+            </div>
+          </div>
+        )}
+      </div>
+    )}
+  </div>
+</Layout>
+
+<script>
+  // Sort functionality
+  const sortSelect = document.getElementById('sort-select');
+  const searchForm = document.getElementById('search-form');
+  const urlParams = new URLSearchParams(window.location.search);
+  const currentQuery = urlParams.get('q');
+
+  sortSelect?.addEventListener('change', (e) => {
+    const sortBy = (e.target as HTMLSelectElement).value;
+    const newUrl = new URL(window.location.href);
+    newUrl.searchParams.set('sort_by', sortBy);
+    window.location.href = newUrl.toString();
+  });
+
+  // Set initial sort value
+  const currentSort = urlParams.get('sort_by') || 'relevance';
+  if (sortSelect) {
+    (sortSelect as HTMLSelectElement).value = currentSort;
+  }
+</script> 

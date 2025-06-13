@@ -1,0 +1,83 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+interface Post {
+  id: string;
+  title: string;
+  content: string;
+  tags: string[];
+  created_at: string;
+}
+
+// Fetch recent posts from the API
+const response = await fetch('http://backend:8000/api/posts/?page=1&size=10');
+const posts: Post[] = await response.json();
+---
+
+<Layout title="Forum Search - Home">
+  <div class="space-y-8">
+    <div class="text-center space-y-4">
+      <h1 class="text-4xl font-extrabold text-gray-900 sm:text-5xl">
+        Welcome to <span class="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">Forum Search</span>
+      </h1>
+      <p class="text-xl text-gray-600 max-w-2xl mx-auto">
+        Discover and share knowledge in our modern forum platform
+      </p>
+      <div class="flex justify-center space-x-4">
+        <a href="/new" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
+          Create New Post
+        </a>
+        <a href="/search" class="inline-flex items-center px-6 py-3 border border-gray-300 text-base font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
+          Search Posts
+        </a>
+      </div>
+    </div>
+
+    <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      {posts.map((post: Post) => (
+        <article class="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden border border-gray-200">
+          <div class="p-6">
+            <h2 class="text-xl font-semibold text-gray-900 mb-2 line-clamp-2">
+              <a href={`/posts/${post.id}/`} class="hover:text-indigo-600 transition-colors duration-200">
+                {post.title}
+              </a>
+            </h2>
+            <p class="text-gray-600 mb-4 line-clamp-3">
+              {post.content}
+            </p>
+            <div class="flex flex-wrap gap-2 mb-4">
+              {post.tags.map((tag: string) => (
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                  {tag}
+                </span>
+              ))}
+            </div>
+            <div class="flex items-center justify-between text-sm text-gray-500">
+              <time datetime={post.created_at}>
+                {new Date(post.created_at).toLocaleDateString()}
+              </time>
+              <a href={`/posts/${post.id}/`} class="text-indigo-600 hover:text-indigo-500 font-medium">
+                Read more →
+              </a>
+            </div>
+          </div>
+        </article>
+      ))}
+    </div>
+
+    {posts.length === 0 && (
+      <div class="text-center py-12">
+        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        <h3 class="mt-2 text-sm font-medium text-gray-900">No posts yet</h3>
+        <p class="mt-1 text-sm text-gray-500">Get started by creating a new post.</p>
+        <div class="mt-6">
+          <a href="/new" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+            Create New Post
+          </a>
+        </div>
+      </div>
+    )}
+  </div>
+</Layout>
