@@ -84,7 +84,7 @@ A modern forum search platform built with Elasticsearch, FastAPI, and Astro. Thi
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/elasticsearch-forum-search.git
+   git clone https://github.com/toasobi-lab/elasticsearch-forum-search.git
    cd elasticsearch-forum-search
    ```
 
